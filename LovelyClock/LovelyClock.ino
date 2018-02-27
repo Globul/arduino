@@ -7,7 +7,15 @@
     DC-----------11
     VCC----------5V
     GND----------GND
-    CS-----------GND*/
+    CS-----------GND
+    
+    RTC          arduino
+    VCC----------5V
+    GND----------GND
+    SDA----------A4
+    SCL----------A5
+    
+    */
 
 int SCL_PIN=10;//D0
 int SDA_PIN=9; //D1
@@ -919,11 +927,13 @@ void setup()
 {
 	LEDPIN_Init();
 	LED_Init();
+  Serial.begin(9600);
+  Serial.println("setup");
 	rtc.begin(); // Initialize the rtc object
 	// The following lines can be uncommented to set the date and time
-	//  rtc.setDOW(THURSDAY);     // Set Day-of-Week to SUNDAY
-	//  rtc.setTime(18, 30, 0);     // Set the time to 12:00:00 (24hr format)
-	//  rtc.setDate(25, 1, 2014);   // Set the date to January 1st, 2014
+//	  rtc.setDOW(TUESDAY);     // Set Day-of-Week to SUNDAY
+//	  rtc.setTime(13, 11, 0);     // Set the time to 12:00:00 (24hr format)
+//	  rtc.setDate(27, 2, 2018);   // Set the date to January 1st, 2014
 }
 
 unsigned char varCompteur = 0; // La variable compteur
@@ -965,7 +975,7 @@ void loop()
 	//LED_Fill(0x00);                               //clear all
 	//LED_P6x8Str(j,i,"              ");
 */
-
+#if 0
 	static int i=0;
 	if (i == 0)
 	{
@@ -979,13 +989,17 @@ void loop()
 	delay(100000);
 	i = 0;
 	}
-
+#endif
   
-//  tm = rtc.getTime();
-//  disp(&tm);
-//	LED_P6x8Str(10,4,rtc.getTimeStr());
-//	LED_P6x8Str(10,5,rtc.getDateStr());
-//	delay(1000);
+  Serial.println("avant getTime");
+  tm = rtc.getTime();
+  Serial.println("heure:");
+  Serial.println(rtc.getTimeStr());
+  Serial.println(rtc.getDateStr());
+  //disp(&tm);
+	LED_P6x8Str(10,4,rtc.getTimeStr());
+	LED_P6x8Str(10,5,rtc.getDateStr());
+	delay(1000);
 }
 
 
