@@ -22,6 +22,9 @@ int SDA_PIN=9; //D1
 int RST_PIN=13;//RST
 int DC_PIN=11; //DC
 
+int BTN1=3; //Button1
+int BTN2=2; //Button1
+
 void LED_CLS(void);
 void LED_Set_Pos(unsigned char x,unsigned char y);//Set the coordinate
 void LED_WrDat(unsigned char data);   //Write Data
@@ -927,6 +930,10 @@ void setup()
 {
 	LEDPIN_Init();
 	LED_Init();
+  pinMode(BTN1, INPUT);
+  digitalWrite(BTN1, HIGH);
+  pinMode(BTN2, INPUT);
+  digitalWrite(BTN2, HIGH);
   Serial.begin(9600);
   Serial.println("setup");
 	rtc.begin(); // Initialize the rtc object
@@ -999,7 +1006,16 @@ void loop()
   //disp(&tm);
 	LED_P6x8Str(10,4,rtc.getTimeStr());
 	LED_P6x8Str(10,5,rtc.getDateStr());
-	delay(1000);
+  if (digitalRead(BTN1) == LOW)
+    LED_P6x8Str(10,6,"LOW ");
+  else
+    LED_P6x8Str(10,6,"HIGH");
+  if (digitalRead(BTN2) == LOW)
+    LED_P6x8Str(10,7,"LOW ");
+  else
+    LED_P6x8Str(10,7,"HIGH");
+  
+	delay(100);
 }
 
 
