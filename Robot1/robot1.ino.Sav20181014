@@ -1,0 +1,388 @@
+#include <IRremoteESP8266.h>
+#include <IRrecv.h>
+#include <Wire.h>
+
+// Front left motor
+#define IDL 0
+int ENL = 16;
+int IN1L = 0;
+int IN2L = 2;
+
+// Front right motor
+#define IDR  1
+int ENR = 15;
+int IN1R = 13;
+int IN2R = 12;
+
+// Max value for motor
+#define MAXSPEED  1024
+
+// Infrared receptor
+int IRPIN=14;
+
+// Ultrasound sensor
+int TRIG=3;
+int ECHO=1;
+
+// for tests
+int ENA = 4;
+int IN1 = 0;
+int IN2 = 2;
+
+#define T_CHM 0xa25d
+#define T_CH  0x629d
+#define T_CHP  0xe21d
+#define T_PREV  0x22dd
+#define T_NEXT  0x02fd
+#define T_PLAY  0xc23d
+#define T_VOLM  0xe01f
+#define T_VOLP  0xa857
+#define T_EQ  0x906f
+#define T_0  0x6897
+#define T_100  0x9867
+#define T_200  0xb04f
+#define T_1  0x30cf
+#define T_2  0x18e7
+#define T_3  0x7a85
+#define T_4  0x10ef
+#define T_5  0x38c7
+#define T_6  0x5aa5
+#define T_7  0x42bd
+#define T_8  0x4ab5
+#define T_9  0x52ad
+
+// this function will run the motors in both directions at a fixed speed
+
+void testOne() {
+
+// turn on motor
+
+digitalWrite(ENA, HIGH); // set speed to 200 out of possible range 0~255
+digitalWrite(IN1, HIGH);
+digitalWrite(IN2, LOW);
+
+delay(2000); // now change motor directions
+
+digitalWrite(IN1, LOW);
+digitalWrite(IN2, HIGH);
+
+delay(2000); // now turn off motors
+
+digitalWrite(IN1, LOW);
+digitalWrite(IN2, LOW);
+}
+
+// this function will run the motors across the range of possible speeds
+
+// note that maximum speed is determined by the motor itself and the operating voltage
+// the PWM values sent by analogWrite() are fractions of the maximum speed possible by your hardware
+
+void testTwo() {
+char tmp[40];
+// turn on motors
+
+digitalWrite(IN1, LOW);
+digitalWrite(IN2, HIGH);
+
+// accelerate from zero to maximum speed
+
+for (int i = 100; i < 1024; i++)
+
+{
+    sprintf(tmp, "%d", i);
+    Serial.println(tmp);
+    analogWrite(ENA, i);
+    delay(50);
+}
+
+delay(2000); // now turn off motors
+
+// decelerate from maximum speed to zero
+
+for (int i = 255; i >= 100; --i)
+{
+    sprintf(tmp, "%d", i);
+    Serial.println(tmp);
+      analogWrite(ENA, i);
+      delay(50);
+}
+
+// now turn off motors
+
+digitalWrite(IN1, LOW);
+digitalWrite(IN2, LOW);
+}
+
+void setMotor(int id, int speed)
+{
+  char tmp[40];
+  int en, in1, in2;
+
+  switch(id)
+  {
+    case IDL :
+      en = ENL;
+      in1 = IN1L;
+      in2 = IN2L;
+      break;
+    case IDR :
+      en = ENR;
+      in1 = IN1R;
+      in2 = IN2R;
+      break;
+  }
+
+  if (abs(speed) > 10000)
+  {
+    // active brake
+    Serial.println("use brake");
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, HIGH);
+  }
+  else if (speed > 0)
+  {
+    // move forward
+    Serial.println("forward");
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+  }
+  else if (speed < 0)
+  {
+    // move backward
+    Serial.println("backward");
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+  }
+  else
+  {
+    // turn motor off
+    Serial.println("turn motor off");
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+  }
+
+  sprintf(tmp, "set speed to %d", abs(speed));
+  Serial.println(tmp);
+  analogWrite(en, abs(speed));
+}
+
+void LED_P8x16Str(int x, int y, char *s)
+{
+  Serial.println(s);
+}
+
+void dispKey(int code)
+{
+  switch (code)
+  {
+    case T_CHM:   LED_P8x16Str(1,5,"CH- "); break;
+    case T_CH:    LED_P8x16Str(1,5,"CH  "); break;
+    case T_CHP:   LED_P8x16Str(1,5,"CH+ "); break;
+    case T_PREV:  LED_P8x16Str(1,5,"PREV"); break;
+    case T_NEXT:  LED_P8x16Str(1,5,"NEXT"); break;
+    case T_PLAY:  LED_P8x16Str(1,5,"PLAY"); break;
+    case T_VOLM:  LED_P8x16Str(1,5,"VOL-"); break;
+    case T_VOLP:  LED_P8x16Str(1,5,"VOL+"); break;
+    case T_EQ:    LED_P8x16Str(1,5,"EQ  "); break;
+    case T_0:     LED_P8x16Str(1,5,"0   "); break;
+    case T_100:   LED_P8x16Str(1,5,"100+"); break;
+    case T_200:   LED_P8x16Str(1,5,"200+"); break;
+    case T_1:     LED_P8x16Str(1,5,"1   "); break;
+    case T_2:     LED_P8x16Str(1,5,"2   "); break;
+    case T_3:     LED_P8x16Str(1,5,"3   "); break;
+    case T_4:     LED_P8x16Str(1,5,"4   "); break;
+    case T_5:     LED_P8x16Str(1,5,"5   "); break;
+    case T_6:     LED_P8x16Str(1,5,"6   "); break;
+    case T_7:     LED_P8x16Str(1,5,"7   "); break;
+    case T_8:     LED_P8x16Str(1,5,"8   "); break;
+    case T_9:     LED_P8x16Str(1,5,"9   "); break;
+    default :     LED_P8x16Str(1,5,"????"); break;
+  }
+}
+
+IRrecv irrecv(IRPIN);
+decode_results results;
+
+
+//int LED=2;
+int LED=16;
+
+void setup() {
+  // set all the motor control pins to outputs
+  pinMode(ENL, OUTPUT);
+  pinMode(IN1L, OUTPUT);
+  pinMode(IN2L, OUTPUT);
+  pinMode(ENR, OUTPUT);
+  pinMode(IN1R, OUTPUT);
+  pinMode(IN2R, OUTPUT);
+//  Serial.begin(115200);
+  pinMode(1, FUNCTION_3);
+  pinMode(3, FUNCTION_3);
+
+  irrecv.enableIRIn();  // initialize IR receptor
+  
+  // sensor init
+  pinMode(TRIG, OUTPUT); // Sets the trigPin as an Output
+  pinMode(ECHO, INPUT); // Sets the echoPin as an Input}
+
+  pinMode(LED, OUTPUT); // Sets the trigPin as an Output
+}
+
+int First=1;
+int MotorSel=1;
+int Speed=0;
+int Distance;
+#define DTSZ  5
+int DT[DTSZ];
+int DTidx;
+long Duration;
+int ModeAuto=0;
+
+void loop() {
+  char  buf[40];
+  int   key, i;
+
+#if 0
+  for (i=0; i<5; i++)
+  {
+//    Serial.println("HIGH");
+    digitalWrite(LED, HIGH);
+    delay(200);
+    Serial.println("LOW");
+    digitalWrite(LED, LOW);
+    delay(200);
+  }
+
+
+ // Clears the trigPin
+  digitalWrite(TRIG, LOW);
+  delayMicroseconds(2);
+  
+  // Sets the trigPin on HIGH state for 10 micro seconds
+  digitalWrite(TRIG, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG, LOW);
+  
+  // Reads the echoPin, returns the sound wave travel time in microseconds
+  Duration = pulseIn(ECHO, HIGH);
+  
+  // Calculating the distance in cm
+  Distance= Duration*0.034/2;
+
+  sprintf(buf, "distance=%d duration=%d", Distance, Duration);
+  Serial.println(buf);
+
+  for (i=0; i<10; i++)
+  {
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(10*Distance);
+    digitalWrite(LED_BUILTIN, LOW);
+    delay(10*Distance);
+  }
+  return;
+#endif
+  
+  if (First)
+  {
+//    Serial.println("IR remote codes");
+    First = 0;
+    for(i=0; i<DTSZ; i++)
+      DT[i] = -1;
+    DTidx=0;
+  }
+
+  if (irrecv.decode(&results))
+  {
+    sprintf(buf, "code = 0x%08x", (long) results.value);
+//    Serial.println(buf);
+    key = results.value & 0xffff;
+    dispKey(key);
+
+    switch (key)
+    {
+      case T_1:     MotorSel=IDL; Speed=0; break;
+      case T_2:     MotorSel=IDR; Speed=0; break;
+      case T_VOLM:  Speed-=MAXSPEED/10; break;
+      case T_VOLP:  Speed+=MAXSPEED/10; break;
+      case T_PREV:  Speed=-MAXSPEED; break;
+      case T_NEXT:  Speed=MAXSPEED; break;
+      case T_0:     setMotor(IDL, 0); setMotor(IDR, 0); ModeAuto=0; break;
+      case T_PLAY:  ModeAuto=!ModeAuto; break;
+    }
+    irrecv.resume();  // get next value
+  }
+
+    if (ModeAuto)
+    {
+      // Clears the trigPin
+      digitalWrite(TRIG, LOW);
+      delayMicroseconds(2);
+
+      // Sets the trigPin on HIGH state for 10 micro seconds
+      digitalWrite(TRIG, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(TRIG, LOW);
+  
+      // Reads the echoPin, returns the sound wave travel time in microseconds
+      Duration = pulseIn(ECHO, HIGH);
+  
+      // Calculating the distance in cm
+      Distance= Duration*0.034/2;
+      sprintf(buf, "distance=%d duration=%d", Distance, Duration);
+//      Serial.println(buf);
+
+      DT[DTidx++] = Distance;
+      if (DTidx >= DTSZ)
+        DTidx = 0;
+
+      Distance = 0;
+      for (i=0; i<DTSZ; i++)
+      {
+        // Start
+        if (DT[i] < 0)
+        {
+      sprintf(buf, "DT[%d}<0", i);
+//      Serial.println(buf);
+          return;
+        }
+        Distance += DT[i];
+      }
+
+      Distance = Distance / DTSZ;
+
+      if (Distance > 100)
+      {
+        setMotor(IDL, Speed);
+        setMotor(IDR, Speed);
+      }
+      else if (Distance > 20)
+      {
+        setMotor(IDL, Distance*Speed/100);
+        setMotor(IDR, Distance*Speed/100);
+      }
+      else
+      {
+        setMotor(IDL, -0.5*Speed);
+        setMotor(IDR, 0.5*Speed);
+        delay(200);
+      }
+    }
+    else
+    {
+//      Serial.print("Motor selected: ");
+      switch (MotorSel)
+      {
+//        case IDL: Serial.println("left"); break;
+//        case IDR: Serial.println("right"); break;
+      }
+      sprintf(buf, "Speed: %d", Speed);
+//      Serial.println(buf);
+      setMotor(MotorSel, Speed);
+    }
+  
+  return;
+  testOne();   
+  delay(1000);   
+  testTwo();   
+  delay(1000);
+}
