@@ -1,0 +1,18 @@
+Carte 14x20
+
+Face:
+Ecran
+2 boutons connexions lignes D F
+
+Dos:
+ATMEGA328 mini
+RTC
+
+Implantation:
+Ecran: A5-A11
+RTC: lignes M S
+
+
+Ordre:
+
+ecran en dernier

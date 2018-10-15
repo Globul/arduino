@@ -1,6 +1,16 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
+
+// Relay --- Arduino
+// GND --- GND
+// VCC --- 5V
+// IN  --- 10
+// NO = Normally Open
+// NC = Normally Closed
+// COM = Common
+#define PINRELAY 10
+
 // LCD Display connection :
 // LCD --- Arduino
 // GND --- GND
@@ -42,10 +52,18 @@ void setup()
   // Print to the screen, starting at 5,0.
   printlcd(5, 0, "BONJOUR");
   printlcd(5, 1, "MAITRE");
+
+  pinMode(PINRELAY, OUTPUT);
 }
 
  void loop()
 {
+  printlcd(5, 0, "OFF");
+  digitalWrite(PINRELAY, LOW);
+  delay(5000);
+  printlcd(5, 0, "ON");
+  digitalWrite(PINRELAY, HIGH);
+  delay(5000);
 }
 
 
