@@ -41,6 +41,85 @@ void LED_PrintEdge(void);
 void LED_Cursor(unsigned char cursor_column, unsigned char cursor_row);
 void LED_PrintLine(void);
 
+unsigned char Screen[128*64/8];
+// 12*8
+const unsigned char M1[]=
+{
+0x80,0x60,0x18,0x06,0x01,0xf9,0x3e,0x3e,0x1c,0x18,0x18,0x30,
+};
+
+// 4*3
+const unsigned char M5[]=
+{
+//0x06,0x02,0x03,0x01,
+// => decalage de 3
+0x30,0x10,0x18,0x08,
+};
+
+// 11*6
+const unsigned char M10[]=
+{
+0x70,0x10,0x18,0x08,0x04,0x04,0x02,0x02,0x02,0x01,0x01,
+};
+
+// 8*7
+const unsigned char H1[]=
+{
+0x80,0x40,0x2c,0x1e,0x33,0x33,0x1e,0x0c,
+};
+
+// 18*12
+const unsigned char H5[]=
+{
+0x00,0x00,0x00,0x00,0x00,0x00,0x80,0x80,0x40,0x20,0x20,0x10,0x10,0x10,0x10,0x10,
+0x70,0xc0,
+0xc0,0x20,0x18,0x04,0x02,0x01,0x00,0x00,0x00,0x1e,0x21,0x21,0x21,0x33,0x10,0x10,
+0x0e,0x03,
+};
+
+#if 0
+// 18*12
+const unsigned char H5[]=
+{
+0x00,0x00,0x80,0x40,0x20,0x10,0x08,0x08,0x04,0xe2,0x12,0x11,0x11,0x31,0x01,0x01,
+0xe7,0x3c,
+0x0c,0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x02,0x02,0x02,0x03,0x01,0x01,
+0x00,0x00,
+};
+#endif
+
+// 1*32
+const unsigned char TigeM[]=
+{
+0xff,
+0xff,
+0xff,
+0xff,
+};
+
+// 1*40
+const unsigned char TigeH[]=
+{
+0xff,
+0xff,
+0xff,
+0xff,
+0xff,
+};
+
+// 12*12
+const unsigned char Sun[]=
+{
+0xf0,0xfc,0xce,0xce,0xff,0xff,0xff,0xff,0xce,0xce,0xfc,0xf0,
+0x00,0x03,0x07,0x06,0x0c,0x0d,0x0d,0x0c,0x06,0x07,0x03,0x00,
+};
+
+// 8*13
+const unsigned char Moon[]=
+{
+0xf0,0xf8,0xfc,0xce,0xcf,0xff,0x1f,0x01,
+0x01,0x03,0x07,0x0f,0x19,0x1b,0x12,0x10,
+};
 
 const unsigned char Background[]=
 {
@@ -613,7 +692,6 @@ void LED_Init(void)
 	LED_Set_Pos(0,0);   
 } 
 
-
 void LED_P6x8Char(unsigned char x,unsigned char y,unsigned char ch)
 {
 	unsigned char c=0,i=0,j=0;     
@@ -679,6 +757,20 @@ void LED_P8x16Str(unsigned char x,unsigned char y,char ch[])
 }
 
 
+void LED_PrintClear(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1)
+{   
+	int ii=0;
+	unsigned char x,y;
+	for(y=y0;y<=y1;y++)
+	{
+		LED_Set_Pos(x0,y);        
+		for(x=x0;x<x1;x++)
+		{      
+			LED_WrDat(0);       
+		}
+	}
+}
+
 
 void LED_PrintBMP(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1,unsigned char bmp[])
 {   
@@ -690,6 +782,65 @@ void LED_PrintBMP(unsigned char x0,unsigned char y0,unsigned char x1,unsigned ch
 		for(x=x0;x<x1;x++)
 		{      
 			LED_WrDat(bmp[ii++]);       
+		}
+	}
+}
+
+void LED_PrintBMPDec(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1,int dec,unsigned char bmp[])
+{   
+	int ii=0;
+	unsigned char val;
+	unsigned char x,y;
+	for(y=y0;y<=y1+(dec>0);y++)
+	{
+		LED_Set_Pos(x0,y);        
+		for(x=x0;x<x1;x++)
+		{      
+			if (y<=y1)
+				val = bmp[ii] << dec;
+			else
+				val = 0;
+			if (y > y0)
+				val |= bmp[ii-(x1-x0)] >> (8-dec);
+			LED_WrDat(val);       
+			ii++;
+		}
+	}
+}
+
+void LED_PrintBMPInv(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1,unsigned char bmp[])
+{   
+	int ii=0;
+	unsigned char x,y;
+	for(y=y0;y<=y1;y++)
+	{
+		LED_Set_Pos(x0,y);        
+		for(x=x0;x<x1;x++)
+		{      
+			ii = (x1-x0)-(x-x0)-1+(y-y0)*(x1-x0);
+			LED_WrDat(bmp[ii]);       
+		}
+	}
+}
+
+void LED_PrintBMPInvDec(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1,int dec,unsigned char bmp[])
+{   
+	int ii=0;
+	unsigned char val;
+	unsigned char x,y;
+	for(y=y0;y<=y1+1;y++)
+	{
+		LED_Set_Pos(x0,y);        
+		for(x=x0;x<x1;x++)
+		{      
+			ii = (x1-x0)-(x-x0)-1+(y-y0)*(x1-x0);
+			if (y<=y1)
+				val = bmp[ii] << dec;
+			else
+				val = 0;
+			if (y > y0)
+				val |= bmp[ii-(x1-x0)] >> (8-dec);
+			LED_WrDat(val);       
 		}
 	}
 }
@@ -912,6 +1063,7 @@ void dispMin(int m)
 #endif
 }
 
+#if 0
 void disp(Time *tm)
 {
   char tmp[40];
@@ -923,8 +1075,9 @@ void disp(Time *tm)
   dispHour(tm->hour);
   dispMin(tm->min);
 }
+#endif
 
-DS3231  rtc(SDA, SCL);
+DS3231  Rtc(SDA, SCL);
 
 void setup()
 {
@@ -934,86 +1087,433 @@ void setup()
   digitalWrite(BTN1, HIGH);
   pinMode(BTN2, INPUT);
   digitalWrite(BTN2, HIGH);
-  Serial.begin(9600);
-  Serial.println("setup");
-	rtc.begin(); // Initialize the rtc object
+//  Serial.begin(9600);
+//  Serial.println("setup");
+	Rtc.begin(); // Initialize the rtc object
 	// The following lines can be uncommented to set the date and time
-//	  rtc.setDOW(TUESDAY);     // Set Day-of-Week to SUNDAY
-//	  rtc.setTime(13, 11, 0);     // Set the time to 12:00:00 (24hr format)
-//	  rtc.setDate(27, 2, 2018);   // Set the date to January 1st, 2014
+//	  Rtc.setDOW(TUESDAY);     // Set Day-of-Week to SUNDAY
+//	  Rtc.setTime(13, 11, 0);     // Set the time to 12:00:00 (24hr format)
+//	  Rtc.setDate(27, 2, 2018);   // Set the date to January 1st, 2014
 }
 
+/*
 unsigned char varCompteur = 0; // La variable compteur
 unsigned int cpt = 0;
-
-void loop()
-{
-  Time  tm;
-	/*
-	   unsigned char x,y;
-	   for(y=0;y<128;y++)
-	   {
-	//    for(x=30;x<40;x++)
-	{      
-	LED_Plot(y, y%64, 1);
-	delay(500);
-	}
-	}
-	 */
-	/*
-	   for(y=0;y<8;y++)
-	   {
-	   LED_Set_Pos(0,y);        
-	   for(x=0;x<8;x++)
-	   {      
-	   LED_WrDat(0x01<<(x%8));       
-	   delay(1000);
-	   }
-	   }
-	 */
-	/*
-	   static int i=3, j=-1;
-	//    i = ++i % 7;
-	j = ++j % 128;
-	LED_P6x8Str(j,i,"Bonjour maitre");
-	//LED_P8x16Str(40,2,"cher");
-	//LED_P8x16Str(20,4,"maitre");
-	delay(50);
-	//LED_Fill(0x00);                               //clear all
-	//LED_P6x8Str(j,i,"              ");
 */
-#if 0
-	static int i=0;
-	if (i == 0)
+
+void printH(int h)
+{
+	int	dec;
+
+	if (h%5 >= 1)
+		LED_PrintBMP(33,3,41,3,(unsigned char *)H1);
+	else
+		LED_PrintClear(33,3,41,3);
+	if (h%5 >= 2)
+		LED_PrintBMPInv(22,3,30,3,(unsigned char *)H1);
+	else
+		LED_PrintClear(22,3,30,3);
+	if (h%5 >= 3)
+		LED_PrintBMP(33,2,41,2,(unsigned char *)H1);
+	else
+		LED_PrintClear(33,2,41,2);
+	if (h%5 >= 4)
+		LED_PrintBMPInv(22,2,30,2,(unsigned char *)H1);
+	else
+		LED_PrintClear(22,2,30,2);
+
+	if (h>=5)
+		LED_PrintBMP(32,6,50,7,(unsigned char *)H5);
+	else
 	{
-	LED_PrintBMP(0,0,128,7,(unsigned char *)Background);
-	delay(10000);
-	i = 1;
+		// clear all
+		LED_PrintClear(32,6,50,7);
+		LED_PrintClear(13,6,31,7);
+		LED_PrintClear(32,4,50,5);
+		LED_PrintClear(13,4,31,5);
+	}
+	if (h>=10)
+		LED_PrintBMPInv(13,6,31,7,(unsigned char *)H5);
+	if (h>=15)
+		LED_PrintBMP(32,4,50,5,(unsigned char *)H5);
+	if (h>=20)
+		LED_PrintBMPInv(13,4,31,5,(unsigned char *)H5);
+
+	if (h>=7 && h<=20)
+	{
+		dec = (h-7)*7;
+		LED_PrintBMP(14+dec,0,26+dec,1,(unsigned char *)Sun);
+	}
+	else if (h<7)
+		LED_PrintBMP(4,2,12,3,(unsigned char *)Moon);
+	else
+		LED_PrintBMPInv(115,2,123,3,(unsigned char *)Moon);
+}
+
+void printM(int m)
+{
+	if (m%5 >= 1)
+		LED_PrintBMP(96,4,108,4,(unsigned char *)M1);
+	else
+		LED_PrintClear(96,4,108,4);
+	if (m%5 >= 2)
+		LED_PrintBMPInv(83,4,95,4,(unsigned char *)M1);
+	else
+		LED_PrintClear(83,4,95,4);
+	if (m%5 >= 3)
+		LED_PrintBMP(96,3,108,3,(unsigned char *)M1);
+	else
+		LED_PrintClear(96,3,108,3);
+	if (m%5 >= 4)
+		LED_PrintBMPInv(83,3,95,3,(unsigned char *)M1);
+	else
+		LED_PrintClear(83,3,95,3);
+
+	if (m>=5)
+	{
+		if (m>=10)
+			LED_PrintBMP(96,7,107,7,(unsigned char *)M10);
+		else
+			LED_PrintBMP(96,7,100,7,(unsigned char *)M5);
 	}
 	else
 	{
-	LED_Fill(0x00);                               //clear all
-	delay(100000);
-	i = 0;
+		// clear all
+		LED_PrintClear(96,7,107,7);
+		LED_PrintClear(84,7,95,7);
+		LED_PrintClear(96,6,107,6);
+		LED_PrintClear(84,6,95,6);
+		LED_PrintClear(96,5,107,5);
+		LED_PrintClear(91,5,95,5);
 	}
-#endif
-  
-  Serial.println("avant getTime");
-  tm = rtc.getTime();
-  Serial.println("heure:");
-  Serial.println(rtc.getTimeStr());
-  Serial.println(rtc.getDateStr());
+	if (m>=15)
+	{
+		if (m>=20)
+			LED_PrintBMPInv(84,7,95,7,(unsigned char *)M10);
+		else
+			LED_PrintBMPInv(91,7,95,7,(unsigned char *)M5);
+	}
+	if (m>=25)
+	{
+		if (m>=30)
+			LED_PrintBMP(96,6,107,6,(unsigned char *)M10);
+		else
+			LED_PrintBMP(96,6,100,6,(unsigned char *)M5);
+	}
+	if (m>=35)
+	{
+		if (m>=40)
+			LED_PrintBMPInv(84,6,95,6,(unsigned char *)M10);
+		else
+			LED_PrintBMPInv(91,6,95,6,(unsigned char *)M5);
+	}
+	if (m>=45)
+	{
+		if (m>=50)
+			LED_PrintBMP(96,5,107,5,(unsigned char *)M10);
+		else
+			LED_PrintBMP(96,5,100,5,(unsigned char *)M5);
+	}
+	if (m>=55)
+			LED_PrintBMPInv(91,5,95,5,(unsigned char *)M5);
+}
+
+void debug()
+{
+	int	count=0, c=0;
+	LED_Fill(0x00);
+	while (count < 12000)
+	{
+//		LED_P6x8Str(10,4,"Debug ...");
+		delay(100);
+		if (digitalRead(BTN1) == LOW || digitalRead(BTN2) == LOW)
+			return;
+//		LED_PrintBMP(0,0,128,7,(unsigned char *)Background);
+//		LED_PrintBMP(0,0,WIDTH,(HEIGHT/8)-1,(unsigned char *)Background);
+//		LED_PrintBMP(5,4,23,5,(unsigned char *)H5);
+//		LED_PrintBMP(55,4,73,4,(unsigned char *)H5);
+//		LED_PrintBMP(0,0,7,0,(unsigned char *)H1);
+//		LED_PrintBMP(20,2,27,2,(unsigned char *)H1);
+//		LED_PrintBMP(32,4,39,4,(unsigned char *)H1);
+//		LED_PrintBMPDec(22,4,29,4,c++%8,(unsigned char *)H1);
+//		LED_PrintBMPDec(12,4,19,4,0,(unsigned char *)H1);
+//		LED_PrintBMPInv(52,4,59,4,(unsigned char *)H1);
+//		LED_PrintBMPInvDec(62,4,69,4,c++%8,(unsigned char *)H1);
+//		LED_PrintBMP(31,0,43,1,(unsigned char *)Sun);
+		LED_PrintBMP(31,3,32,7,(unsigned char *)TigeH);
+		LED_PrintBMP(95,4,96,7,(unsigned char *)TigeM);
+//		LED_PrintBMP(96,5,108,5,(unsigned char *)M1);
+		printM((c/2)%60);
+//		printM(59);
+		printH((c++/2)%24);
+//		printH(23);
+//		LED_PrintBMP(0,0,11,0,(unsigned char *)M10);
+		count += 100;
+	}
+}
+
+void setHour()
+{
+	int		count=0, h, m, ds=0;
+	char		tmp[10], *pt;
+	
+	pt = Rtc.getTimeStr();
+	h = atoi(pt);
+	m = atoi(pt+3);
+	LED_Fill(0x00);
+	while (count < 10000)
+	{
+		LED_P6x8Str(10,2,"Reglage de l'heure");
+		sprintf(tmp, "%02d:%02d  OK Annule", h, m);
+		LED_P6x8Str(10,3,tmp);
+		switch(ds)
+		{
+			case 1:
+				LED_P6x8Str(10,4," ^              ");
+				break;
+			case 2:
+				LED_P6x8Str(10,4,"   ^            ");
+				break;
+			case 3:
+				LED_P6x8Str(10,4,"    ^           ");
+				break;
+			case 4:
+				LED_P6x8Str(10,4,"       ^^       ");
+				break;
+			case 5:
+				LED_P6x8Str(10,4,"          ^^^^^^");
+				break;
+			default:
+				LED_P6x8Str(10,4,"^               ");
+				break;
+		}
+		delay(200);
+		if (digitalRead(BTN1) == LOW)
+		{
+			count = 0;
+			ds = (ds + 1) % 6;
+		}
+		else if (digitalRead(BTN2) == LOW)
+		{
+			count = 0;
+			if (ds == 0)
+				h = ((h / 10) * 10  + 10) % 30 + h % 10;
+			else if (ds == 1)
+				h = (h / 10) * 10 + ((h % 10) + 1) % 10;
+			else if (ds == 2)
+				m = ((m / 10) * 10 + 10) % 60 + m % 10;
+			else if (ds == 3)
+				m = (m / 10) * 10 + ((m % 10) + 1) % 10;
+			else if (ds == 4)
+			{
+				Rtc.setTime(h, m, 0);
+				return;
+			}
+			else if (ds == 5)
+				return;
+		}
+		count += 100;
+	}
+}
+
+// button 1: navigation
+// button 2: confirmation
+void menu()
+{
+	int count=0, choice=0;
+
+	LED_Fill(0x00);
+	while (count < 10000)
+	{
+		LED_P6x8Str(5,2+choice,"->");
+		LED_P6x8Str(20,2,"Reglage heure");
+		LED_P6x8Str(20,3,"Debug");
+		LED_P6x8Str(20,4,"test");
+		delay(100);
+		if (digitalRead(BTN1) == LOW)
+		{
+			LED_P6x8Str(5,2+choice,"  ");
+			choice = (choice + 1) % 2;
+			count = 0;
+		}
+		else if (digitalRead(BTN2) == LOW)
+		{
+			if (choice == 0)
+				setHour();
+			else if (choice == 1)
+				debug();
+			return;
+		}
+		count+=100;
+	}
+}
+
+#if 0
+void loop()
+{
+/*	  else
+	  {
+	    LED_Fill(0x00);                               //clear all
+	    delay(100000);
+	    i = 0;
+	  }*/
+//  Serial.println("avant getTime");
+//  tm = Rtc.getTime();
+//  Serial.println("heure:");
+//  Serial.println(Rtc.getTimeStr());
+//  Serial.println(Rtc.getDateStr());
   //disp(&tm);
-	LED_P6x8Str(10,4,rtc.getTimeStr());
-	LED_P6x8Str(10,5,rtc.getDateStr());
+	LED_P6x8Str(10,0,Rtc.getTimeStr());
+	LED_P6x8Str(10,2,Rtc.getDateStr());
   if (digitalRead(BTN1) == LOW)
-    LED_P6x8Str(10,6,"LOW ");
+  {
+	menu();
+//    LED_Fill(0x00);                               //clear all
+//    LED_P6x8Str(10,4,"LOW ");
+//    LED_PrintBMP(0,0,128,7,(unsigned char *)Background);
+//    LED_PrintBMP(0,0,WIDTH,(HEIGHT/8)-1,(unsigned char *)Background);
+//    LED_PrintBMP(0,0,18,0,(unsigned char *)H5);
+//    delay(10000);
+//    LED_Fill(0x00);                               //clear all
+  }
   else
-    LED_P6x8Str(10,6,"HIGH");
+  {
+    LED_P6x8Str(10,4,"HIGH");
+  }
   if (digitalRead(BTN2) == LOW)
-    LED_P6x8Str(10,7,"LOW ");
+    LED_P6x8Str(60,4,"LOW ");
   else
-    LED_P6x8Str(10,7,"HIGH");
+    LED_P6x8Str(60,4,"HIGH");
+  
+	delay(100);
+ 
+}
+#endif
+
+void displayHour()
+{
+	static int	oldm=-1;
+	int	count=0, h, m, s;
+	char	*pt;
+	
+	while (1)
+	{
+		if (digitalRead(BTN1) == LOW)
+		{
+			menu();
+			LED_Fill(0x00);
+		}
+	  
+		if (count%10 == 0)
+		{
+			pt = Rtc.getTimeStr();
+			h = atoi(pt);
+			m = atoi(pt+3);
+			s = atoi(pt+6);
+		}
+
+		if (oldm != m)
+		{
+			LED_Fill(0x00);
+			LED_PrintBMP(31,3,32,7,(unsigned char *)TigeH);
+			LED_PrintBMP(95,4,96,7,(unsigned char *)TigeM);
+			printH(h);
+			printM(m);
+			oldm = m;
+		}
+		delay(100);
+		count++;
+	}
+}
+
+void LED_WrDat2(unsigned char data)   
+{
+	unsigned char i = 8;
+	//LED_CS=0;
+	//LED_DCH;;;
+	digitalWrite(DC_PIN,HIGH);
+	//LED_SCLL;;; 
+	digitalWrite(SCL_PIN,LOW);
+	while (i--)
+	{
+		if (data & 0x80)
+		{
+			digitalWrite(SDA_PIN,HIGH);;;;
+		}
+		else
+		{
+			digitalWrite(SDA_PIN,LOW);;;
+		}
+		//LED_SCLH;;; 
+		digitalWrite(SCL_PIN,HIGH);;;
+		asm("nop");;;     
+		//LED_SCLL;;;
+		digitalWrite(SCL_PIN,LOW);
+		data <<= 1;    
+	}
+	//LED_CS=1;
+}
+
+void LED_PrintBMP2(unsigned char x0,unsigned char y0,unsigned char x1,unsigned char y1,unsigned char bmp[], int neg)
+{   
+	int ii=0;
+	unsigned char x,y, val;
+	for(y=y0;y<=y1;y++)
+	{
+		LED_Set_Pos(x0,y);        
+		for(x=x0;x<x1;x++)
+		{      
+			if (neg)
+			{
+				val = Screen[y*8+x] & ~bmp[ii];
+			}
+			else
+				val = Screen[y*8+x] | bmp[ii];
+			Screen[y*8+x] = val;
+			LED_WrDat2(val);       
+			ii++;
+		}
+	}
+}
+
+void debug2()
+{
+	const unsigned char pt[] = { 0xff };
+	const unsigned char pt2[] = { 0xff, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x18 };
+
+	LED_PrintBMP2(95,4,96,4,(unsigned char *)pt, 0);
+	delay(1000);
+	LED_PrintBMP2(92,4,100,4,(unsigned char *)pt2, 0);
+	delay(1000);
+	LED_PrintBMP2(95,4,96,4,(unsigned char *)pt, 1);
+	delay(1000);
+	LED_PrintBMP2(92,4,100,4,(unsigned char *)pt2, 1);
+	delay(1000);
+}
+
+void loop()
+{
+//	debug2();
+//	delay(1000);
+//	return;
+
+	displayHour();
+
+	LED_P6x8Str(10,0,Rtc.getTimeStr());
+	LED_P6x8Str(10,2,Rtc.getDateStr());
+	if (digitalRead(BTN1) == LOW)
+	{
+		menu();
+		LED_Fill(0x00);
+	}
+	else
+	{
+		LED_P6x8Str(10,4,"HIGH");
+	}
+	if (digitalRead(BTN2) == LOW)
+		LED_P6x8Str(60,4,"LOW ");
+	else
+		LED_P6x8Str(60,4,"HIGH");
   
 	delay(100);
 }
