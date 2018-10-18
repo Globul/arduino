@@ -224,7 +224,11 @@ void setup() {
   // Show image buffer on the display hardware.
   // Since the buffer is intialized with an Adafruit splashscreen
   // internally, this will display the splashscreen.
-  display.display();
+  // display.display();
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.setCursor(0,0);
+  display.println("Starting ...");
   delay(2000);
 
   // Clear the buffer.
@@ -243,6 +247,7 @@ int ModeAuto=0;
 
 void loop() {
   char  buf[40];
+  char  tmp[128];
   int   key, i;
 
   
@@ -271,7 +276,7 @@ void loop() {
       case T_PREV:  Speed=-MAXSPEED; break;
       case T_NEXT:  Speed=MAXSPEED; break;
       case T_0:     setMotor(IDL, 0); setMotor(IDR, 0); Speed=0; break;
-      case T_PLAY:  ModeAuto=!ModeAuto; break;
+      case T_PLAY:  ModeAuto=!ModeAuto; sprintf(tmp, "ModeAuto=%d", ModeAuto); display.println(tmp); delay(1000); break;
     }
     irrecv.resume();  // get next value
   }
@@ -292,7 +297,8 @@ void loop() {
   
       // Calculating the distance in cm
       Distance= Duration*0.034/2;
-      sprintf(buf, "distance=%d duration=%d", Distance, Duration);
+      sprintf(buf, "distance=%d", Distance);
+      display.println(buf);
 //      Serial.println(buf);
 
       DT[DTidx++] = Distance;
