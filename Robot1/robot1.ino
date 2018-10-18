@@ -182,6 +182,20 @@ decode_results results;
 int LED=16;
 
 void setup() {
+  pinMode(LED, OUTPUT);
+  digitalWrite(LED, HIGH);
+  delay(200);
+  digitalWrite(LED, LOW);
+  delay(200);
+  digitalWrite(LED, HIGH);
+  delay(200);
+  digitalWrite(LED, LOW);
+  delay(200);
+  digitalWrite(LED, HIGH);
+  delay(200);
+  digitalWrite(LED, LOW);
+
+
 //  Serial.begin(115200);
   pinMode(1, FUNCTION_3);
   pinMode(3, FUNCTION_3);
