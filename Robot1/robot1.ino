@@ -1,4 +1,4 @@
-# vim: ft=sh: set noet ts=2 sw=2:
+// vim: ft=sh: set noet ts=2 sw=2:
 
 #include <IRremoteESP8266.h>
 #include <IRrecv.h>
@@ -176,8 +176,7 @@ void dispKey(int code)
 	}
 }
 
-IRrecv irrecv(IRPIN);
-decode_results results;
+IRrecv IrRecv(IRPIN);
 
 
 //int LED=2;
@@ -210,7 +209,7 @@ void setup() {
 	pinMode(IN1R, OUTPUT);
 	pinMode(IN2R, OUTPUT);
 
-	irrecv.enableIRIn();  // initialize IR receptor
+	IrRecv.enableIRIn();  // initialize IR receptor
 
 	// sensor init
 	pinMode(TRIG, OUTPUT); // Sets the trigPin as an Output
@@ -219,7 +218,7 @@ void setup() {
 	//  pinMode(LED, OUTPUT); // Sets the trigPin as an Output
 
 
-	// by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
+	// by default, we will generate the high voltage from the 3.3v line internally! (neat!)
 	display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with the I2C addr 0x3C (for the 128x32)
 	// init done
 
@@ -227,33 +226,38 @@ void setup() {
 	// Since the buffer is intialized with an Adafruit splashscreen
 	// internally, this will display the splashscreen.
 	// display.display();
+	display.clearDisplay();
 	display.setTextSize(1);
 	display.setTextColor(WHITE);
 	display.setCursor(0,0);
 	display.println("Starting ...");
+	display.display();
 	delay(2000);
 
 	// Clear the buffer.
 	display.clearDisplay();
 }
 
+#define	ST_MANUAL		0		// manual mode
+#define	ST_START		1		// auto, start phase
+#define	ST_FORWARD	2		// auto, forward phase
+#define	ST_TURN			3		// auto, turn phase
+
+#define EVT_NONE				0		// no event
+#define EVT_MODESWITCH	1		// switch mode manual/auto
+#define EVT_SPEEDINC		2		// increase speed
+#define EVT_SPEEDDEC		3		// decrease speed
+#define EVT_SPEED0			4		// set speed to 0
+#define EVT_SELMOTORL		5		// select left motor
+#define EVT_SELMOTORR		6		// select right motor
+
 int First=1;
-int MotorSel=1;
-int Speed=0;
-int Distance;
+int	State = ST_MANUAL;
 #define DTSZ  5
 int DT[DTSZ];
 int DTidx;
-long Duration;
-int ModeAuto=0;
-
-#define	ST_MANUAL	0		// manual mode
-#define	ST_START	1
-
-#define EVT_MODESWITCH	0		// switch mode manual/auto
-#define EVT_SPEEDINC		1		// increase speed
-#define EVT_SPEEDDEC		2		// decrease speed
-#define EVT_SPEED0			3		// set speed to 0
+int ModeAuto = 0;
+int	LastScan = -1;
 
 int	manualMode(int evt)
 {
@@ -300,16 +304,77 @@ int	manualMode(int evt)
 	}
 }
 
-int  treatEvt(int evt)
+int start(int evt)
 {
+}
+
+int forward(int evt)
+{
+	static	int	speed=0;
+	int	ave=0, i;
+	char	buf[40];
+
+	if (LastScan < 0)
+		return -1;
+
+	DT[DTidx++] = LastScan;
+	if (DTidx >= DTSZ)
+		DTidx = 0;
+
+	for (i=0; i<DTSZ; i++)
+	{
+		// Start
+		if (DT[i] < 0)
+		{
+			sprintf(buf, "DT[%d}<0", i);
+			//      Serial.println(buf);
+			return 0;
+		}
+		ave += DT[i];
+	}
+
+	ave = ave / DTSZ;
+
+	if (ave > 100)
+	{
+		setMotor(IDL, speed);
+		setMotor(IDR, speed);
+	}
+	else if (ave > 20)
+	{
+		setMotor(IDL, ave*speed/100);
+		setMotor(IDR, ave*speed/100);
+	}
+	else
+	{
+		setMotor(IDL, -0.5*speed);
+		setMotor(IDR, 0.5*speed);
+		delay(200);
+	}
+}
+
+int turn(int evt)
+{
+	return 0;
+}
+
+/*!
+ * \brief Treat events
+ *
+ * \param evt event received
+ */
+void  treatEvt(int evt)
+{
+	if (evt == EVT_NONE && State == ST_MANUAL)
+		return;
+
 	if (evt == EVT_MODESWITCH)
 	{
-		Speed = 0;
 		if (State != ST_MANUAL)
 		{
 			State = ST_MANUAL;
-			manual(EVT_SPEED0);
-			return 0;
+			manualMode(EVT_SPEED0);
+			return;
 		}
 		else
 		{
@@ -320,16 +385,103 @@ int  treatEvt(int evt)
 	switch (State)
 	{
 		case ST_MANUAL:
-			return manualMode(evt);
+			manualMode(evt);
+			return;
+		case ST_START:
+			start(evt);
+			return;
+		case ST_FORWARD:
+			forward(evt);
+			return;
+		case ST_TURN:
+			start(evt);
+			return;
 		default:
 			break;
 	}
 }
 
-void loop() {
+/*!
+ * \brief Read IR sensor
+ *
+ * \return event related to remote key entered
+ */
+int readIR()
+{
+	decode_results	results;
+	char						buf[40];
+	int							ret=EVT_NONE, key;
+
+	if (IrRecv.decode(&results))
+	{
+		sprintf(buf, "code = 0x%08x", (long) results.value);
+		//    Serial.println(buf);
+		key = results.value & 0xffff;
+		dispKey(key);
+
+		switch (key)
+		{
+			case T_1:     ret = EVT_SELMOTORL; break;
+			case T_2:     ret = EVT_SELMOTORR; break;
+			case T_VOLM:  ret = EVT_SPEEDDEC; break;
+			case T_VOLP:  ret = EVT_SPEEDINC; break;
+//			case T_PREV:  Speed=-MAXSPEED; break;
+//			case T_NEXT:  Speed=MAXSPEED; break;
+			case T_0:     ret = EVT_SPEED0; break;
+			case T_PLAY:  ret = EVT_MODESWITCH; break;
+		}
+		IrRecv.resume();  // get next value
+	}
+	return ret;
+}
+
+/*!
+ * \brief perform a scan
+ *
+ * \return distance in mm
+ */
+int sonarScan()
+{
+	static int	count=0;
+	int	duration, distance;
+	char	buf[40];
+
+	// Clears the trigPin
+	digitalWrite(TRIG, LOW);
+	delayMicroseconds(2);
+
+	// Sets the trigPin on HIGH state for 10 micro seconds
+	digitalWrite(TRIG, HIGH);
+	delayMicroseconds(10);
+	digitalWrite(TRIG, LOW);
+
+	// Reads the echoPin, returns the sound wave travel time in microseconds
+	duration = pulseIn(ECHO, HIGH, 300000);
+
+	// Calculating the distance in cm
+	distance= duration*0.034/2;
+
+	if (count%4 == 0)
+	{
+		display.clearDisplay();
+		display.setCursor(0,0);
+	}
+	sprintf(buf, "distance=%d", distance);
+	display.println(buf);
+	display.display();
+	count++;
+
+	return distance;
+}
+
+/*!
+ * \brief main loop
+ */
+void loop()
+{
 	char  buf[40];
 	char  tmp[128];
-	int   key, i;
+	int   key, i, evt;
 
 	if (First)
 	{
@@ -340,95 +492,10 @@ void loop() {
 		DTidx=0;
 	}
 
-	if (irrecv.decode(&results))
-	{
-		sprintf(buf, "code = 0x%08x", (long) results.value);
-		//    Serial.println(buf);
-		key = results.value & 0xffff;
-		dispKey(key);
+	LastScan = sonarScan();
 
-		switch (key)
-		{
-			case T_1:     MotorSel=IDL; Speed=0; break;
-			case T_2:     MotorSel=IDR; Speed=0; break;
-			case T_VOLM:  Speed-=MAXSPEED/10; break;
-			case T_VOLP:  Speed+=MAXSPEED/10; break;
-			case T_PREV:  Speed=-MAXSPEED; break;
-			case T_NEXT:  Speed=MAXSPEED; break;
-			case T_0:     setMotor(IDL, 0); setMotor(IDR, 0); Speed=0; break;
-			case T_PLAY:  ModeAuto=!ModeAuto; sprintf(tmp, "ModeAuto=%d", ModeAuto); display.println(tmp); delay(1000); break;
-		}
-		irrecv.resume();  // get next value
-	}
-
-	if (ModeAuto)
-	{
-		// Clears the trigPin
-		digitalWrite(TRIG, LOW);
-		delayMicroseconds(2);
-
-		// Sets the trigPin on HIGH state for 10 micro seconds
-		digitalWrite(TRIG, HIGH);
-		delayMicroseconds(10);
-		digitalWrite(TRIG, LOW);
-
-		// Reads the echoPin, returns the sound wave travel time in microseconds
-		Duration = pulseIn(ECHO, HIGH);
-
-		// Calculating the distance in cm
-		Distance= Duration*0.034/2;
-		sprintf(buf, "distance=%d", Distance);
-		display.println(buf);
-		//      Serial.println(buf);
-
-		DT[DTidx++] = Distance;
-		if (DTidx >= DTSZ)
-			DTidx = 0;
-
-		Distance = 0;
-		for (i=0; i<DTSZ; i++)
-		{
-			// Start
-			if (DT[i] < 0)
-			{
-				sprintf(buf, "DT[%d}<0", i);
-				//      Serial.println(buf);
-				return;
-			}
-			Distance += DT[i];
-		}
-
-		Distance = Distance / DTSZ;
-
-		if (Distance > 100)
-		{
-			setMotor(IDL, Speed);
-			setMotor(IDR, Speed);
-		}
-		else if (Distance > 20)
-		{
-			setMotor(IDL, Distance*Speed/100);
-			setMotor(IDR, Distance*Speed/100);
-		}
-		else
-		{
-			setMotor(IDL, -0.5*Speed);
-			setMotor(IDR, 0.5*Speed);
-			delay(200);
-		}
-	}
-	else
-	{
-		//      Serial.print("Motor selected: ");
-		switch (MotorSel)
-		{
-			//        case IDL: Serial.println("left"); break;
-			//        case IDR: Serial.println("right"); break;
-		}
-		sprintf(buf, "Speed: %d", Speed);
-		//      Serial.println(buf);
-		setMotor(MotorSel, Speed);
-	}
+	evt = readIR();
+	treatEvt(evt);
 
 	return;
 }
