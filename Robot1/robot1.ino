@@ -28,11 +28,14 @@ int IN2R = 3;//12
 // Infrared receptor
 int IRPIN=14;
 
-// Ultrasound sensor
+// Sonar sensor
 //int TRIG=5;
 //int ECHO=4;
 int TRIG=12;//1
 int ECHO=13;//3
+
+// CPU frequency
+int	CpuFreqMHz;
 
 #define OLED_RESET LED_BUILTIN
 Adafruit_SSD1306 display(OLED_RESET);
@@ -238,6 +241,8 @@ void setup() {
 
 	// Clear the buffer.
 	display.clearDisplay();
+
+	CpuFreqMHz = ESP.getCpuFreqMHz();
 }
 
 #define	ST_MANUAL		0		// manual mode
@@ -553,6 +558,52 @@ int readIR()
 	return ret;
 }
 
+#include "wiring_private.h"
+#include "pins_arduino.h"
+
+/* Measures the length (in microseconds) of a pulse on the pin; state is HIGH
+* or LOW, the type of pulse to measure.  Works on pulses from 2-3 microseconds
+* to 3 minutes in length, but must be called at least a few dozen microseconds
+* before the start of the pulse. */
+unsigned long myPulseIn(uint8_t pin, uint8_t state, unsigned long timeout)
+{
+	// cache the port and bit of the pin in order to speed up the
+	// pulse width measuring loop and achieve finer resolution.  calling
+	// digitalRead() instead yields much coarser resolution.
+	uint8_t bit = digitalPinToBitMask(pin);
+	uint8_t port = digitalPinToPort(pin);
+	uint8_t stateMask = (state ? bit : 0);
+	unsigned long width = 0; // keep initialization out of time critical area
+
+	// convert the timeout from microseconds to a number of times through
+	// the initial loop; it takes 16 clock cycles per iteration.
+	unsigned long numloops = 0;
+	unsigned long maxloops = microsecondsToClockCycles(timeout) / 16;
+
+	// wait for any previous pulse to end
+	while ((*portInputRegister(port) & bit) == stateMask)
+		if (numloops++ == maxloops)
+			return 0;
+
+	// wait for the pulse to start
+	while ((*portInputRegister(port) & bit) != stateMask)
+		if (numloops++ == maxloops)
+			return 0;
+
+	// wait for the pulse to stop
+	while ((*portInputRegister(port) & bit) == stateMask) {
+		if (numloops++ == maxloops)
+			return 0;
+		width++;
+	}
+
+	// convert the reading to microseconds. The loop has been determined
+	// to be 20 clock cycles long and have about 16 clocks between the edge
+	// and the start of the loop. There will be some error introduced by
+	// the interrupt handlers.
+	return clockCyclesToMicroseconds(width * 21 + 16);
+}
+
 /*!
  * \brief perform a scan
  *
@@ -578,13 +629,148 @@ int sonarScan()
 	// Calculating the distance in cm
 	distance= duration*0.034/2;
 
-  if (State != ST_MANUAL)
-  {
-   	sprintf(buf, "distance=%d", distance);
-	  dispMsg(buf);
-  }
-
 	return distance;
+}
+
+// return duration (in microseconds) for a number of cycles
+uint32_t cycle2Microsec(uint32_t c)
+{
+	return c/CpuFreqMHz;
+}
+
+uint32_t microsec2Cycle(uint32_t ms)
+{
+	return ms*CpuFreqMHz;
+}
+
+/*!
+ * \brief perform a scan
+ *
+ * \return distance in mm
+ */
+#define	SONAR_START					0
+#define	SONAR_CLEAR					1
+#define	SONAR_SEND					2
+#define	SONAR_READWAITLOW1	3
+#define	SONAR_READWAITHIGH	4
+#define	SONAR_ERROR					5
+#define	SONAR_FIRST					6
+#define	SONAR_READWAITLOW2	7
+int sonarScanNew()
+{
+	static int state = SONAR_FIRST;
+	static uint32_t last, start;
+	static uint8_t	bit, port, stateMask;
+	static int disp = 1;
+	uint32_t cur, diff;
+	int	duration, distance;
+	char	buf[40];
+
+	cur = ESP.getCycleCount();
+	if (cur - last > microsec2Cycle(10000000))
+	{
+			sprintf(buf, "lock st=%d => reset", state);
+			dispMsg(buf);
+			state = SONAR_START;
+	}
+	switch(state)
+	{
+		case SONAR_FIRST:
+			bit = digitalPinToBitMask(ECHO);
+			port = digitalPinToPort(ECHO);
+			stateMask = (HIGH ? bit : 0);
+
+		case SONAR_START:
+			if (disp)
+			{
+				dispMsg("st=START");
+				disp = 0;
+			}
+			state = SONAR_CLEAR;
+			disp = 1;
+			digitalWrite(TRIG, LOW);
+			last = ESP.getCycleCount();
+			start = last;
+			return -1;
+
+		case SONAR_CLEAR:
+			if (disp)
+			{
+				dispMsg("st=CLEAR");
+				disp = 0;
+			}
+			if (cur - last < microsec2Cycle(2))
+				return -2;
+			state = SONAR_SEND;
+			disp = 1;
+			digitalWrite(TRIG, HIGH);
+			last = ESP.getCycleCount();
+			return -3;
+
+		case SONAR_SEND:
+			if (disp)
+			{
+//				dispMsg("st=SEND");
+				disp = 0;
+			}
+			if (cur - last < microsec2Cycle(10))
+				return -4;
+			digitalWrite(TRIG, LOW);
+			state = SONAR_READWAITLOW2;
+			disp = 1;
+//			state = SONAR_READWAITHIGH;
+			return -5;
+
+		case SONAR_READWAITLOW1:
+			if (disp)
+			{
+//				dispMsg("st=READWAITLOW1");
+				disp = 0;
+			}
+//			if ((*portInputRegister(port) & bit) == stateMask)
+			if (digitalRead(ECHO) == HIGH)
+				return -6;
+			state = SONAR_READWAITHIGH;
+			disp = 1;
+			return -7;
+
+		case SONAR_READWAITHIGH:
+			if (disp)
+			{
+//				dispMsg("st=READWAITHIGH");
+				disp = 0;
+			}
+//			if ((*portInputRegister(port) & bit) != stateMask)
+			if (digitalRead(ECHO) == LOW)
+				return -8;
+			last = ESP.getCycleCount();
+			state = SONAR_READWAITLOW2;
+			disp = 1;
+			return -9;
+
+		case SONAR_READWAITLOW2:
+			if (0 && disp)
+			{
+//				dispMsg("st=READWAITLOW2");
+				disp = 0;
+			}
+//			if ((*portInputRegister(port) & bit) == stateMask)
+//			if (digitalRead(ECHO) == HIGH)
+//				return -10;
+			state = SONAR_START;
+			disp = 1;
+//			duration = cycle2Microsec(cur - last);
+
+			duration = pulseIn(ECHO, HIGH, 300000);
+			distance= duration*0.034/2;
+			return distance;
+
+		default:
+			dispMsg("st=ERROR");
+			dispMsg("Error sonar !");
+			disp = 1;
+			return -11;
+	}
 }
 
 /*!
@@ -592,18 +778,76 @@ int sonarScan()
  */
 void loop()
 {
+	static int count = 0;
 	char  buf[40];
 	char  tmp[128];
 	int   key, i, evt;
 
+#if 0
+	unsigned long int	count1, count2;
+
+	count1 = ESP.getCycleCount();
+	sprintf(buf, "test");
+	dispMsg(buf);
+	count2 = ESP.getCycleCount();
+	sprintf(buf, "cc1 = %u\ncc2 = %u", count1, count2);
+	dispMsg(buf);
+	sprintf(buf, "diff = %u", count2-count1);
+	dispMsg(buf);
+	delay(5000);
+#endif
+
+/*
 	evt = readIR();
   if (evt != EVT_NONE)
   {
     sprintf(buf, "evt = %d", evt);
     dispMsg(buf);
   }
-  LastScan = sonarScan();
-	treatEvt(evt);
+*/
 
+//	if (!((count / 300) % 2))
+	if (0)
+	{
+		LastScan = sonarScan();
+//		if (State != ST_MANUAL)
+		{
+			sprintf(buf, "old d=%d", LastScan);
+			dispMsg(buf);
+		}
+	}
+	else
+	{
+//		while (1)
+		{
+		LastScan = sonarScanNew();
+//		if (State != ST_MANUAL)
+		if (LastScan >= 0)
+		{
+			sprintf(buf, "new d=%d", LastScan);
+			dispMsg(buf);
+			delay(1000);
+		}
+		}
+	}
+
+//	treatEvt(evt);
+
+	count++;
 	return;
 }
+
+
+/*	Informations
+
+	count1 = ESP.getCycleCount();
+	count2 = ESP.getCycleCount();
+	diff entre count1 et count2 = 2 
+	avec un delay(1000) entre les 2 = de 80001700 a 80003400
+
+	avec
+	sprintf(buf, "test");
+	dispMsg(buf);
+	=> 4500000
+
+	*/
