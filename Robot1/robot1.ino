@@ -797,15 +797,15 @@ void loop()
 	delay(5000);
 #endif
 
-/*
+
 	evt = readIR();
   if (evt != EVT_NONE)
   {
     sprintf(buf, "evt = %d", evt);
     dispMsg(buf);
   }
-*/
 
+#if 0
 //	if (!((count / 300) % 2))
 	if (0)
 	{
@@ -830,8 +830,17 @@ void loop()
 		}
 		}
 	}
+ #endif
 
-//	treatEvt(evt);
+    LastScan = sonarScan();
+    if (State != ST_MANUAL)
+    {
+      sprintf(buf, "dist=%d", LastScan);
+      dispMsg(buf);
+      delay(1000);
+    }
+
+	treatEvt(evt);
 
 	count++;
 	return;
