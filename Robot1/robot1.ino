@@ -45,6 +45,13 @@ Adafruit_SSD1306 display(OLED_RESET);
 #define YPOS 1
 #define DELTAY 2
 
+//
+// Use flash memory to store informations
+// Format: TAG(2 bytes)|SIZE (2 bytes)|DATA
+//
+#define	MEMSTART	0x405FB000
+#define MEMEND    0x405FB000 + 1024*1024*1024
+#define	MEMTAG		0x2005			// tag to identify if memory is used
 
 #define LOGO16_GLCD_HEIGHT 16 
 #define LOGO16_GLCD_WIDTH  16 
@@ -269,6 +276,67 @@ int DTidx;
 int ModeAuto = 0;
 int	LastScan = -1;
 int Count = 0;
+//uint32_t  CycleCount;
+uint32_t	MemNextFree = -1;
+uint32_t	MemNextRead = MEMSTART;
+
+uint32_t memSearchFree()
+{
+	uint32_t	pt;
+	uint32_t	tag, sz;
+
+	pt = MEMSTART;
+
+	do {
+			sz = 0;
+			ESP.flashRead(pt, &tag, 2);
+			if (tag != MEMTAG)
+				return pt;
+			pt += 2;
+			ESP.flashRead(pt, &sz, 2);
+			pt += 2 + sz;
+	}
+	while (pt < MEMEND);
+	return 0;	
+}
+
+int memWrite(char *str, uint32_t sz)
+{
+	uint32_t	pt, valtag=MEMTAG;
+
+	if (MemNextFree < 0)
+		MemNextFree = memSearchFree();
+
+	if (sz <= 0)
+		return -1;
+
+	pt = MemNextFree;
+	ESP.flashWrite(pt, &valtag, 2);
+	pt += 2;
+	ESP.flashWrite(pt, &sz, 2);
+	pt += 2;
+//	ESP.flashWrite(pt, str, sz);
+	MemNextFree += 4 + sz;
+	return sz;
+}
+
+int memRead(char *str, uint16_t sz)
+{
+	uint32_t	pt;
+	uint32_t	tag, readsz;
+
+	pt = MemNextRead;
+	ESP.flashRead(pt, &tag, 2);
+	if (tag != MEMTAG)
+		return -1;
+	pt += 2;
+	ESP.flashRead(pt, &readsz, 2);
+	if (readsz >= sz)
+		return -2;
+//	ESP.flashRead(pt, str, readsz);
+	str[readsz] = '\0';
+	return readsz;
+}
 
 void changeState(int st)
 {
@@ -373,6 +441,7 @@ int forward(int evt)
   static  int lightTurn=0;  // light turn when approaching obstacle
 	int	ave=0, i;
 	char	buf[40];
+  uint32_t  count;
 
 //  dispMsg("State = ST_FORWARD");
 
@@ -398,7 +467,17 @@ int forward(int evt)
     changeState(ST_TURN);
     return 1;
   }
-  
+
+  count = ESP.getCycleCount();
+  int cycledur = 2; //cycle de 2s
+  double pc = (double) (count % (cycledur * CpuFreqMHz * 1000000)) / (cycledur * CpuFreqMHz * 1000000);  // % du cycle
+  double cyclevar = sin(pc*2*PI);
+//    sprintf(buf, "pc=%f", pc);
+//    sprintf(buf, "freq=%u", CpuFreqMHz);
+//    dispMsg(buf);
+//    sprintf(buf, "count=%u", count % (cycledur * CpuFreqMHz * 1000000));
+//    dispMsg(buf);
+
 	DT[DTidx++] = LastScan;
 	if (DTidx >= DTSZ)
 		DTidx = 0;
@@ -425,8 +504,10 @@ int forward(int evt)
       speed += MAXSPEED*0.1;
     else
       speed = MAXSPEED;
-		setMotor(IDL, speed);
-		setMotor(IDR, speed);
+		setMotor(IDL, speed*0.6+cyclevar*speed*0.4);
+		setMotor(IDR, speed*0.6-cyclevar*speed*0.4);
+    setMotor(IDL, speed*0.6+cyclevar*speed*0.4);
+    setMotor(IDR, speed*0.6-cyclevar*speed*0.4);
     // just select lightTurn way for next time
     if (lightTurn == 0)
       lightTurn = random(0, 2)*2 - 1;
@@ -783,6 +864,27 @@ void loop()
 	char  tmp[128];
 	int   key, i, evt;
 
+//  CycleCount = ESP.getCycleCount();
+
+	evt = readIR();
+  if (evt != EVT_NONE)
+  {
+    sprintf(buf, "evt = %d", evt);
+    dispMsg(buf);
+  }
+
+	LastScan = sonarScan();
+	if (State != ST_MANUAL)
+	{
+		sprintf(buf, "dist=%d", LastScan);
+		dispMsg(buf);
+//		delay(1000);
+	}
+
+	treatEvt(evt);
+
+	count++;
+
 #if 0
 	unsigned long int	count1, count2;
 
@@ -796,14 +898,6 @@ void loop()
 	dispMsg(buf);
 	delay(5000);
 #endif
-
-
-	evt = readIR();
-  if (evt != EVT_NONE)
-  {
-    sprintf(buf, "evt = %d", evt);
-    dispMsg(buf);
-  }
 
 #if 0
 //	if (!((count / 300) % 2))
@@ -831,18 +925,6 @@ void loop()
 		}
 	}
  #endif
-
-    LastScan = sonarScan();
-    if (State != ST_MANUAL)
-    {
-      sprintf(buf, "dist=%d", LastScan);
-      dispMsg(buf);
-      delay(1000);
-    }
-
-	treatEvt(evt);
-
-	count++;
 	return;
 }
 
