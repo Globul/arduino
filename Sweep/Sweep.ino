@@ -33,6 +33,21 @@ void setup() {
   delay(1000);
 }
 
+angleToCoord(int e, int r, int p)
+{
+  int lgPied = 65;
+  int angVertPied = 20; // angle du servo 0 par rapport à la verticale
+  int lgCuisse = 68;
+  int angVertCuisse = 20; // angle du servo 0 par rapport à la verticale
+
+  70 => y = lgPied
+  160 => y = 0
+  180 => y < 0
+  y = cos(-90+lgPied+p)*lgPied;
+  z = sin(90+lgPied+p)*lgPied;
+}
+
+
 void loop() {
   int posr, posp;
 
