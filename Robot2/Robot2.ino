@@ -8,6 +8,7 @@
 
 #include <Servo.h>
 
+#define SERVOON
 #define SERVOECARTE 11
 #define SERVOROTA   10
 #define SERVOPIED   9
@@ -17,22 +18,42 @@ Servo ServoRota;  // create servo object to control a servo
 Servo ServoPied;  // create servo object to control a servo
 
 int LgPied = 65;
-int AngCuissePied = 20; // angle du servo 0 par rapport à la verticale
+int AngCuissePied = 5; // angle du servo 0 par rapport à la verticale, 18 real but 5 seems better
 int LgCuisse = 68;
 int AngVertCuisse = 90; // angle du servo 0 par rapport à la verticale
 int pos = 0;    // variable to store the servo position
 
 void setup() {
+#ifdef  SERVOON
   ServoEcart.attach(SERVOECARTE);  // attaches the servo on pin 9 to the servo object
   ServoRota.attach(SERVOROTA);  // attaches the servo on pin 9 to the servo object
   ServoPied.attach(SERVOPIED);  // attaches the servo on pin 9 to the servo object
+#endif
+  
+  pinMode(LED_BUILTIN, OUTPUT);
 
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, LOW);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
+  digitalWrite(LED_BUILTIN, LOW);
+
+#ifdef  SERVOON
   ServoEcart.write(90);
   delay(1000);
-  ServoRota.write(150);
+  ServoRota.write(90);
   delay(1000);
   ServoPied.write(0);
   delay(1000);
+#endif
+
+ Serial.begin(115200);
 }
 
 double Sin(double a)
@@ -70,7 +91,7 @@ int getAnglePied(int z, int r)
 
   zr = Sin(-r)*LgCuisse;
   p = 270-r-AngCuissePied-Acos(-(z-zr)/LgPied);
-  printf("getAnglePied(%d, %d) => zr=%f p=%d\n", z, r, zr, p);
+//  printf("getAnglePied(%d, %d) => zr=%f p=%d\n", z, r, zr, p);
 /*
   printf("180-(r-90)-(AngCuissePied+p)=%d\n", 180-(r-90)-(AngCuissePied+60));
   printf("cos(180-(r-90)-(AngCuissePied+p))=%f\n",Cos(180-(r-90)-(AngCuissePied+60)));
@@ -87,24 +108,48 @@ int getAnglePied(int z, int r)
 
 
 void loop() {
-  int posr, posp;
+  int posr, posp, target;
+  int del=20; // 2 is the min, under servos can't reached their position
 
-  for (posr=60; posr<120; posr++)
+//return;
+  for (posr=40; posr<150; posr++)
   {
-     posp = getAnglePied(-45, posr);
+     posp = getAnglePied(-100, posr);
+#ifdef  SERVOON
      ServoRota.write(posr);
      ServoPied.write(posp);
-     delay(100);
+#endif
+     delay(del);
   }
-
-  for (posr=120; posr>60; posr--)
+//delay(1000);
+  target = getAnglePied(-60, posr);
+  while (posp > target)
   {
-     posp = getAnglePied(-35, posr);
+#ifdef  SERVOON
+     ServoPied.write(posp--);
+#endif
+     delay(del);
+  }
+//delay(1000);
+  for (posr=150; posr>40; posr--)
+  {
+     posp = getAnglePied(-60, posr);
+#ifdef  SERVOON
      ServoRota.write(posr);
      ServoPied.write(posp);
-     delay(100);
+#endif
+     delay(del);
   }
-
+//delay(1000);
+  target = getAnglePied(-100, posr);
+  while (posp < target)
+  {
+#ifdef  SERVOON
+     ServoPied.write(posp++);
+#endif
+     delay(del);
+  }
+//delay(1000);
   return;
 
   ServoRota.write(130);
