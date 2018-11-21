@@ -423,6 +423,7 @@ int	manualMode(int evt)
   }
 }
 
+// START state
 int start(int evt)
 {
   int i;
@@ -435,6 +436,7 @@ int start(int evt)
   return 0;
 }
 
+// FORWARD state
 int forward(int evt)
 {
 	static	int	speed=0.8*MAXSPEED;
@@ -482,9 +484,10 @@ int forward(int evt)
 	if (DTidx >= DTSZ)
 		DTidx = 0;
 
+	// calculate average on DTSZ last values
 	for (i=0; i<DTSZ; i++)
 	{
-		// Start
+		// Start, do nothing before having enough measures
 		if (DT[i] < 0)
 		{
 			sprintf(buf, "DT[%d}<0", i);
@@ -504,8 +507,6 @@ int forward(int evt)
       speed += MAXSPEED*0.1;
     else
       speed = MAXSPEED;
-		setMotor(IDL, speed*0.6+cyclevar*speed*0.4);
-		setMotor(IDR, speed*0.6-cyclevar*speed*0.4);
     setMotor(IDL, speed*0.6+cyclevar*speed*0.4);
     setMotor(IDR, speed*0.6-cyclevar*speed*0.4);
     // just select lightTurn way for next time
@@ -529,6 +530,7 @@ int forward(int evt)
   }
 }
 
+// TURN state
 int turn(int evt)
 {
   static int fact=0;
@@ -854,6 +856,134 @@ int sonarScanNew()
 	}
 }
 
+// try to detect a complete turn
+int detect360(int evt)
+{
+	static	int				speed=0.8*MAXSPEED;
+  static  uint32_t	startCount;
+  static  int				distance, state=0;
+  static  int				state=0;	//0: not started, 1: started, 2: ended
+	int								limit = 50;
+	int								startTime;
+	int	ave=0, i;
+	char	buf[40];
+  uint32_t  count;
+
+//  dispMsg("State = ST_FORWARD");
+
+	if (LastScan < 0)
+		return -1;
+
+	// if not started
+	if (state == 0)
+	{
+		if (LastScan > 0 && LastScan < limit)
+		{
+			state = 1;
+			startCount = ESP.getCycleCount();
+			distance = LastScan;
+		}
+	}
+	else
+	{
+			if (state == 2)
+				return;
+
+			startCount = ESP.getCycleCount();
+			startTime = abs(startCount - ESP.getCycleCount())/CpuFreqMHz;
+
+			// obstacle detected more than 2 s ago
+			if (startTime > 2)
+			{
+				// if obstacle distance = save distance with 10% error it's our obstacle
+				if (abs(distance-LastScan) < (double) LastScan/10)
+				{
+					setMotor(IDL, 0);
+					setMotor(IDR, 0);
+					state = 2;	// ended
+				}
+			}
+	}
+
+  if (LastScan == 0)
+  {
+    speed = -20000;
+    setMotor(IDL, speed);
+    setMotor(IDR, speed);
+    dispMsg("FREINAGE!");
+    delay(100);
+    dispMsg("Arriere");
+    speed = -0.4*MAXSPEED;
+    setMotor(IDL, speed);
+    setMotor(IDR, speed);
+    delay(500);
+    dispMsg("Stop");
+    speed = 0;
+    setMotor(IDL, speed);
+    setMotor(IDR, speed);
+    changeState(ST_TURN);
+    return 1;
+  }
+
+  count = ESP.getCycleCount();
+  int cycledur = 2; //cycle de 2s
+  double pc = (double) (count % (cycledur * CpuFreqMHz * 1000000)) / (cycledur * CpuFreqMHz * 1000000);  // % du cycle
+  double cyclevar = sin(pc*2*PI);
+//    sprintf(buf, "pc=%f", pc);
+//    sprintf(buf, "freq=%u", CpuFreqMHz);
+//    dispMsg(buf);
+//    sprintf(buf, "count=%u", count % (cycledur * CpuFreqMHz * 1000000));
+//    dispMsg(buf);
+
+	DT[DTidx++] = LastScan;
+	if (DTidx >= DTSZ)
+		DTidx = 0;
+
+	// calculate average on DTSZ last values
+	for (i=0; i<DTSZ; i++)
+	{
+		// Start, do nothing before having enough measures
+		if (DT[i] < 0)
+		{
+			sprintf(buf, "DT[%d}<0", i);
+			//      Serial.println(buf);
+      setMotor(IDL, 0);
+      setMotor(IDR, 0);
+			return 0;
+		}
+		ave += DT[i];
+	}
+
+	ave = ave / DTSZ;
+
+	if (ave > 70)
+	{
+    if (speed < MAXSPEED)
+      speed += MAXSPEED*0.1;
+    else
+      speed = MAXSPEED;
+    setMotor(IDL, speed*0.6+cyclevar*speed*0.4);
+    setMotor(IDR, speed*0.6-cyclevar*speed*0.4);
+    // just select lightTurn way for next time
+    if (lightTurn == 0)
+      lightTurn = random(0, 2)*2 - 1;
+	}
+	else if (ave > 20)
+	{
+    if (speed > ave*MAXSPEED/100)
+      speed = ave*MAXSPEED/100;
+    if (speed < MAXSPEED*0.3)
+      speed = MAXSPEED*0.3;
+    // obstacle detected, lightTurn to try to avoid
+		setMotor(IDL, speed+MAXSPEED*0.1*lightTurn);
+		setMotor(IDR, speed-MAXSPEED*0.1*lightTurn);
+	}
+	else
+  {
+    lightTurn = 0;
+    changeState(ST_TURN);
+  }
+}
 /*!
  * \brief main loop
  */
