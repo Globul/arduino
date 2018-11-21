@@ -9,25 +9,25 @@
 #include <Servo.h>
 
 #define SERVOON
-#define SERVOECARTE 11
-#define SERVOROTA   10
-#define SERVOPIED   9
+#define ECART 11
+#define ROTA   10
+#define PIED   9
 
 Servo ServoEcart;  // create servo object to control a servo
 Servo ServoRota;  // create servo object to control a servo
 Servo ServoPied;  // create servo object to control a servo
 
 int LgPied = 65;
-int AngCuissePied = 5; // angle du servo 0 par rapport à la verticale, 18 real but 5 seems better
+int AngCuissePied = 23; // angle du servo 0 par rapport à la verticale, 18 real but 5 seems better
 int LgCuisse = 68;
 int AngVertCuisse = 90; // angle du servo 0 par rapport à la verticale
 int pos = 0;    // variable to store the servo position
 
 void setup() {
 #ifdef  SERVOON
-  ServoEcart.attach(SERVOECARTE);  // attaches the servo on pin 9 to the servo object
-  ServoRota.attach(SERVOROTA);  // attaches the servo on pin 9 to the servo object
-  ServoPied.attach(SERVOPIED);  // attaches the servo on pin 9 to the servo object
+  ServoEcart.attach(ECART);  // attaches the servo on pin 9 to the servo object
+  ServoRota.attach(ROTA);  // attaches the servo on pin 9 to the servo object
+  ServoPied.attach(PIED);  // attaches the servo on pin 9 to the servo object
 #endif
   
   pinMode(LED_BUILTIN, OUTPUT);
@@ -49,7 +49,7 @@ void setup() {
   delay(1000);
   ServoRota.write(90);
   delay(1000);
-  ServoPied.write(0);
+  ServoPied.write(90);
   delay(1000);
 #endif
 
@@ -84,10 +84,10 @@ int angleToCoord(int e, int r, int p)
 }
 
 // return coord corresponding to angles set for servos
-int getAnglePied(int z, int r)
+double getAnglePied(double z, double r)
 {
   double zr;
-  int p;
+  double p;
 
   zr = Sin(-r)*LgCuisse;
   p = 270-r-AngCuissePied-Acos(-(z-zr)/LgPied);
@@ -106,46 +106,94 @@ int getAnglePied(int z, int r)
   return p;
 }
 
+int convToMicrosec(double val)
+{
+  return MIN_PULSE_WIDTH + val * (MAX_PULSE_WIDTH - MIN_PULSE_WIDTH) / 180;
+}
 
-void loop() {
-  int posr, posp, target;
-  int del=20; // 2 is the min, under servos can't reached their position
-
-//return;
-  for (posr=40; posr<150; posr++)
+int SetServo(int servo, double val)
+{
+  char  buf[80];
+  
+  switch(servo)
   {
-     posp = getAnglePied(-100, posr);
+    case ECART:
+      if (val < 70 || val > 110)
+      {
+        sprintf(buf, "Erreur Ecart: %d", val);
+        Serial.println(buf);
+        return -1;
+      }
+//      ServoEcart.write(val);
+      ServoEcart.writeMicroseconds(convToMicrosec(val));
+      break;
+    case ROTA:
+      if (val < 40 || val > 140)
+      {
+        sprintf(buf, "Erreur Rota: %d", val);
+        Serial.println(buf);
+        return -1;
+      }
+//      ServoRota.write(val);
+      ServoRota.writeMicroseconds(convToMicrosec(val));
+      break;
+    case PIED:
+      if (val < 0 || val > 180)
+      {
+        sprintf(buf, "Erreur Pied: %d", val);
+        Serial.println(buf);
+        return -1;
+      }
+//      ServoPied.write(val);
+      ServoPied.writeMicroseconds(convToMicrosec(val));
+      break;
+  }
+  return 0;
+}
+
+int Count = 0;
+void loop() {
+  double posr, posp, target;
+  int del=2; // 2 is the min, under servos can't reached their position
+  
+  if (Count >= 20)
+    return;
+    
+  Count++;
+  for (posr=50; posr<140; posr+=0.5)
+  {
+     posp = getAnglePied(-90.0, posr);
 #ifdef  SERVOON
-     ServoRota.write(posr);
-     ServoPied.write(posp);
+     SetServo(ROTA, posr);     
+     SetServo(PIED, posp);
 #endif
      delay(del);
   }
 //delay(1000);
-  target = getAnglePied(-60, posr);
+  target = getAnglePied(-80.0, posr);
   while (posp > target)
   {
 #ifdef  SERVOON
-     ServoPied.write(posp--);
+     SetServo(PIED, posp--);
 #endif
      delay(del);
   }
 //delay(1000);
-  for (posr=150; posr>40; posr--)
+  for (posr=140; posr>=50; posr-=1)
   {
-     posp = getAnglePied(-60, posr);
+     posp = getAnglePied(-80.0, posr);
 #ifdef  SERVOON
-     ServoRota.write(posr);
-     ServoPied.write(posp);
+     SetServo(ROTA, posr);     
+     SetServo(PIED, posp);
 #endif
      delay(del);
   }
 //delay(1000);
-  target = getAnglePied(-100, posr);
+  target = getAnglePied(-90.0, posr);
   while (posp < target)
   {
 #ifdef  SERVOON
-     ServoPied.write(posp++);
+     SetServo(PIED, posp++);
 #endif
      delay(del);
   }
