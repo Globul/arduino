@@ -2,6 +2,8 @@
 	Arrosage
 
 	Gestion de l'arrosage
+
+	Board: Arduino Pro or Pro mini
 */
 
 #include <Wire.h>
